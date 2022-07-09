@@ -5,6 +5,7 @@
 #include <exception>
 #include <unordered_map>
 #include <stack>
+#include <getopt.h>
 
 class Tree
 {
@@ -34,11 +35,11 @@ std::string extractFileName(std::string f)
 std::string extractFileNameWithPath(std::string f)
 {
     int p1;
-    // Assign p = 0 if '/' not found
-
+    // Assign p1 = 0 if '.' not found
     (p1 = f.find_last_of('.')) == std::string::npos ? p1 = 0 : 0;
     return f.substr(0, p1);
 }
+
 Tree GenTree(std::string start)
 {
     Tree tree = Tree(start);
@@ -62,10 +63,12 @@ Tree GenTree(std::string start)
     return tree;
 }
 
-void GenMake(Tree t, std::unordered_map<std::string, bool> *m, std::stack<std::string> *s, std::string cmp, std::string cExt, std::string hExt)
+void GenMake(Tree t, std::unordered_map<std::string, bool> *m, std::stack<std::string> *s, std::ofstream *cf, std::string cmp, std::string cExt, std::string hExt)
 {
+    // Go from the bottom of the tree up
     for (size_t i = 0; i < t.children.size(); i++)
-        GenMake(t.children[i], m, s, cmp, cExt, hExt);
+        GenMake(t.children[i], m, s, cf, cmp, cExt, hExt);
+
     // skip node if already created
     if ((*m)[t.data])
         return;
@@ -79,43 +82,81 @@ void GenMake(Tree t, std::unordered_map<std::string, bool> *m, std::stack<std::s
     f.open((*s).top());
     if (!f.is_open())
         throw std::runtime_error("Could not create file  for" + t.data);
+    (*cf) << ' ' << fi + ".o";
     f << fi + ".o: " +
              ((t.data[t.data.size() - 1] == 'c') || (t.data[t.data.size() - 1] == 'p')
                   ? fn + cExt + ' '
                   : fn + cExt + ' ' + fn + hExt);
-    // for (size_t i = 0; i < t.children.size(); i++)
-    //     f <<' ' + extractFileName(t.children[i].data) + ".o";
-    f << "\n\t" + cmp + " -c " + fn + cExt;
-    // for (size_t i = 0; i < t.children.size(); i++)
-    //     f <<' ' + extractFileName(t.children[i].data) + ".o";
-    f << '\n';
+    f << "\n\t" + cmp + " -c " + fn + cExt << '\n';
+}
+
+void Help()
+{
+    std::cout << "Makemaker\n";
+    std::cout << "Usage: ";
+    std::cout << "makemaker -i <file> -c <compiler> -f <code filetype> -H <header filetype> -o <output name> <compiler arguments>\n";
+    std::cout << "Default parameters are:\n-c = g++\n-f = cpp\n-H = h\n-o = output\n";
+    std::cout << "Example: makemaker -i main.cpp -c g++ -f cpp -H h -o main\n";
 }
 
 int main(int argc, char **argv)
-{    
-    if (argc < 5)
+{
+    if (argc < 2)
     {
-        std::cout << "Not enough arguments\n";
-        return 1;
+        Help();
+        return 0;
     }
-    std::string args = "";
-    if (argc > 6)
-        for (size_t i = 7; i < argc; i++)
-            args += argv[i];
+    std::string input = "", compiler = "g++", file = ".cpp", header = ".h", output = "output", arguments = "";
+    int opt;
+    while ((opt = getopt(argc, argv, "hi:c:f:H:o:")) != -1)
+    {
+        switch (opt)
+        {
+        case 'h':
+            Help();
+            return 0;
+            break;
+        case 'i':
+            input = optarg;
+            break;
+        case 'c':
+            compiler = optarg;
+            break;
+        case 'f':
+            file = "." + std::string(optarg);
+            break;
+        case 'H':
+            header = "." + std::string(optarg);
+            break;
+        case 'o':
+            output = optarg;
+            break;
+        }
+    }
+    for (; optind < argc; optind++)
+        arguments += argv[optind] + ' ';
 
-    Tree t = GenTree(argv[1]);
+    if (input == "")
+    {
+        Help();
+        return 0;
+    }
+    Tree t = GenTree(input);
     std::unordered_map<std::string, bool> m;
     std::stack<std::string> files;
 
-    std::string cmp = argv[2];
+    // 2 .tmp (s) just in case someone has a file clean.h
+    //Setup the clean part, put it in the stack first so that it's placed at the end
+    files.push("clean.tmp.tmp");
+    std::ofstream cf;
+    cf.open("clean.tmp.tmp");
+    cf << "clean:\n\trm " << output;
 
-
-    std::string cpp =  "." + (std::string)argv[3];
-    std::string h =  "." + (std::string)argv[4];
-    GenMake(t, &m, &files, cmp,cpp,h);
+    GenMake(t, &m, &files, &cf, compiler, file, header);
+    cf.close();
 
     std::ofstream f;
-    f.open(extractPath(argv[1]) + "Makefile");
+    f.open(extractPath(input) + "Makefile");
     if (!f.is_open())
         throw std::runtime_error("Could not create make file");
     f << "output: "; //+ t.data;
@@ -123,11 +164,11 @@ int main(int argc, char **argv)
 
     for (size_t i = 0; i < m.size(); i++)
         f << ' ' + extractFileName((v[i]).first) + ".o";
-    f << "\n\t" + cmp;
+    f << "\n\t" + compiler;
     for (size_t i = 0; i < m.size(); i++)
         f << ' ' + extractFileName((v[i]).first) + ".o";
     f << " -o ";
-    f << ((argc < 6) ? "output" : argv[5]) + args + '\n';
+    f << output + arguments + '\n';
 
     while (!files.empty())
     {
@@ -135,10 +176,9 @@ int main(int argc, char **argv)
         f1.open(files.top());
         std::string l;
         while (getline(f1, l))
-            f << l +'\n';
+            f << l + '\n';
         std::remove(files.top().c_str());
         files.pop();
     }
-
     return 0;
 }

@@ -1,11 +1,21 @@
-# makemaker
+# Makemaker
+
 A simple tool to automatically generate a Makefile.
 
-## Ussage
+## Usage
+
+```Bash
+ makemaker -i <file> -c <compiler> -f <code filetype> -H <header filetype> -o <output name> <compiler arguments>
 ```
-makemaker <file> <compiler> <c/cpp> <h/hpp> <output-name> <compiler arguments>
-```
+
+## Default parameters
+
+- -c = g++
+- -f = cpp
+- -H = h
+- -o = output
+
 ## Example
-```
-makemaker main.cpp gcc c h test.out
-```
+
+```Bash
+makemaker -i main.cpp -c g++ -f cpp -H h -o main

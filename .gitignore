@@ -4,3 +4,12 @@
 .vscode/settings.json
 .vscode/targets.log
 .vscode/tasks.json
+test/A.cpp
+test/A.h
+test/A.o
+test/main.cpp
+test/main.o
+test/Makefile
+test/output
+test/test
+makemaker
